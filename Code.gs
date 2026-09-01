@@ -7,7 +7,8 @@ const DATA_START_ROW = 9;   // First row where numeric data entries begin
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('Index')
       .setTitle('Week Data Entry')
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
 // Function called by the front-end form submission
@@ -23,7 +24,7 @@ function processForm(formObject) {
   if (!categoryValue || categoryValue === "other") {
     categoryValue = ""; 
   }
-  
+
   appendToCurrentWeekColumn(enteredNumber, categoryValue);
   return "Success! Added entry.";
 }
