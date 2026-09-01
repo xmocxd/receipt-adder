@@ -4,7 +4,15 @@
     <base target="_top">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-      body {
+      .progress-container { margin-bottom: 20px; }
+      .progress-label { display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 5px; }
+      .progress-bar-bg { background-color: #e0e0e0; border-radius: 4px; overflow: hidden; height: 22px; width: 100%; }
+      .progress-bar { height: 100%; width: 0%; transition: width 0.4s ease-in-out; }
+      #spendBar { background-color: #4caf50; }
+      #weekBar { background-color: #2196F3; }
+
+
+       body {
         font-family: Arial, sans-serif;
         background-color: #f4f4f9;
         display: flex;
@@ -90,6 +98,7 @@
     </style>
   </head>
   <body>
+
     <div class="card">
       <h2>Add Receipt</h2>
       <form id="myForm" onsubmit="handleFormSubmit(event)">
@@ -110,10 +119,94 @@
         <button type="submit" id="submitBtn">Submit</button>
       </form>
       <div id="message"></div>
+
+      
+    <div class="progress-container">
+      <div class="progress-label">
+        <span>Spend Progress</span>
+        <span id="spendText">0%</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div id="spendBar" class="progress-bar"></div>
+      </div>
     </div>
 
+    <div class="progress-container">
+      <div class="progress-label">
+        <span>Week Progress</span>
+        <span id="weekText">0%</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div id="weekBar" class="progress-bar"></div>
+      </div>
+    </div>
+
+    <div id="message"></div>
+    </div>
+
+
+
     <script>
-      function selectOption(labelElement) {
+
+
+      // 1. Fetch metrics automatically when the page loads
+      window.onload = function() {
+        google.script.run
+          .withSuccessHandler(updateUI)
+          .withFailureHandler(handleError)
+          .getMetrics();
+      };
+
+      // 2. Handle form submission
+      document.getElementById('myForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        document.getElementById('message').style.color = 'black';
+        document.getElementById('message').innerText = 'Submitting...';
+
+        google.script.run
+          .withSuccessHandler(onFormSuccess)
+          .withFailureHandler(handleError)
+          .processForm(this);
+      });
+
+      function onFormSuccess(response) {
+        document.getElementById('message').style.color = 'green';
+        document.getElementById('message').innerText = response.status;
+        
+        // Update progress bars with returned values
+        updateUI(response);
+      }
+
+      function updateUI(data) {
+        if (!data) return;
+
+        // Handles whether the sheet returns decimals (0.45) or whole numbers (45)
+        let spend = parseFloat(data.spendPercent) || 0;
+        let week = parseFloat(data.weekPercent) || 0;
+
+        let spendPct = spend <= 1 ? spend * 100 : spend;
+        let weekPct = week <= 1 ? week * 100 : week;
+
+        spendPct = Math.min(Math.max(spendPct, 0), 100).toFixed(1);
+        weekPct = Math.min(Math.max(weekPct, 0), 100).toFixed(1);
+
+        // Update Text
+        document.getElementById('spendText').innerText = spendPct + '%';
+        document.getElementById('weekText').innerText = weekPct + '%';
+
+        // Update Bar Widths
+        document.getElementById('spendBar').style.width = spendPct + '%';
+        document.getElementById('weekBar').style.width = weekPct + '%';
+      }
+
+      function handleError(err) {
+        document.getElementById('message').style.color = 'red';
+        document.getElementById('message').innerText = "Error: " + err.message;
+      }
+
+
+
+           function selectOption(labelElement) {
         // Clear 'selected' class from all labels
         const labels = document.querySelectorAll('.option-label');
         labels.forEach(l => l.classList.remove('selected'));
