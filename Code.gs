@@ -2,7 +2,8 @@ const spreadsheetId = "";
 const sheetName = "Weekly";
 const DATE_ROW = 2;         // Row index containing the Sunday dates
 const DATA_START_ROW = 9;   // First row where numeric data entries begin
-
+const SPEND_PERCENT_ROW = 3;
+const WEEK_PERCENT_ROW = 4;
 
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('Index')
@@ -19,27 +20,24 @@ function processForm(formObject) {
     throw new Error("Please enter a valid number.");
   }
   
-  // Extract category and format rule: 'other' translates to blank ""
   let categoryValue = formObject.category;
   if (!categoryValue || categoryValue === "other") {
     categoryValue = ""; 
   }
 
-  appendToCurrentWeekColumn(enteredNumber, categoryValue);
-  return "Success! Added entry.";
-}
-
-function testAppend() {
-  appendToCurrentWeekColumn(42, "Grocery"); // Test function
-}
-
-function appendToCurrentWeekColumn(enteredNumber, categoryValue) {
-  const ss = SpreadsheetApp.openById(spreadsheetId);
-  const sheet = ss.getSheetByName(sheetName); 
+  const metrics = appendToCurrentWeekColumn(enteredNumber, categoryValue);
   
+  return {
+    status: "Success! Added entry.",
+    spendPercent: metrics.spendPercent,
+    weekPercent: metrics.weekPercent
+  };
+}
+
+// Helper function to find the target column for the current Sunday date
+function getCurrentWeekColumn(sheet, ss) {
   const tz = ss.getSpreadsheetTimeZone();
   
-  // 1. Calculate the Sunday date for the current week and format as YYYY-MM-DD
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   
@@ -47,18 +45,16 @@ function appendToCurrentWeekColumn(enteredNumber, categoryValue) {
   currentSunday.setDate(today.getDate() - today.getDay());
   const currentSundayStr = Utilities.formatDate(currentSunday, tz, "yyyy-MM-dd");
   
-  // 2. Search the date row
   const lastCol = sheet.getLastColumn();
+  if (lastCol < 1) return -1;
+  
   const dateRowValues = sheet.getRange(DATE_ROW, 1, 1, lastCol).getValues()[0];
   
   let targetColumn = -1;
-  
   for (let i = 0; i < dateRowValues.length; i++) {
     const cellValue = dateRowValues[i];
-    
     if (cellValue !== "" && cellValue !== null) {
       let cellDateStr = "";
-      
       if (cellValue instanceof Date) {
         cellDateStr = Utilities.formatDate(cellValue, tz, "yyyy-MM-dd");
       } else {
@@ -67,7 +63,6 @@ function appendToCurrentWeekColumn(enteredNumber, categoryValue) {
           cellDateStr = Utilities.formatDate(parsedDate, tz, "yyyy-MM-dd");
         }
       }
-      
       if (cellDateStr === currentSundayStr) {
         targetColumn = i + 1; 
         break;
@@ -75,11 +70,46 @@ function appendToCurrentWeekColumn(enteredNumber, categoryValue) {
     }
   }
   
+  return targetColumn;
+}
+
+function getMetrics() {
+  const ss = SpreadsheetApp.openById(spreadsheetId);
+  const sheet = ss.getSheetByName(sheetName); 
+  
+  const targetColumn = getCurrentWeekColumn(sheet, ss);
+  
   if (targetColumn === -1) {
+    return { "spendPercent": 0, "weekPercent": 0 };
+  }
+  
+  const weekday = new Date().getDay() + 1; // 1 for Sunday, 7 for Saturday
+  const weekPercent = Math.trunc((weekday / 7) * 1000) / 1000;
+
+  return {
+    "spendPercent": sheet.getRange(SPEND_PERCENT_ROW, targetColumn + 1).getValue(),
+    "weekPercent": weekPercent
+  };
+}
+
+function appendToCurrentWeekColumn(enteredNumber, categoryValue) {
+  const ss = SpreadsheetApp.openById(spreadsheetId);
+  const sheet = ss.getSheetByName(sheetName); 
+  
+  const targetColumn = getCurrentWeekColumn(sheet, ss);
+  
+  if (targetColumn === -1) {
+    const tz = ss.getSpreadsheetTimeZone();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const currentSunday = new Date(today);
+    currentSunday.setDate(today.getDate() - today.getDay());
+    const currentSundayStr = Utilities.formatDate(currentSunday, tz, "yyyy-MM-dd");
+    
     throw new Error("Could not find a column for Sunday: " + currentSundayStr);
   }
   
-  // 3. Find the last filled cell in that column and append below it
+  // Find the last filled cell in that column and append below it
   const lastRow = sheet.getLastRow();
   const numRowsToCheck = Math.max(1, lastRow - DATA_START_ROW + 1);
   const columnValues = sheet.getRange(DATA_START_ROW, targetColumn, numRowsToCheck, 1).getValues();
@@ -93,7 +123,9 @@ function appendToCurrentWeekColumn(enteredNumber, categoryValue) {
     }
   }
   
-  // 4. Write number into target column, and category into the cell immediately to the right
+  // Write number into target column, and category into the cell immediately to the right
   sheet.getRange(targetRow, targetColumn).setValue(enteredNumber);
   sheet.getRange(targetRow, targetColumn + 1).setValue(categoryValue);
+
+  return getMetrics();
 }
