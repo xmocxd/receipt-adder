@@ -140,8 +140,6 @@
         <div id="weekBar" class="progress-bar"></div>
       </div>
     </div>
-
-    <div id="message"></div>
     </div>
 
 
@@ -157,24 +155,19 @@
           .getMetrics();
       };
 
-      // 2. Handle form submission
-      document.getElementById('myForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        document.getElementById('message').style.color = 'black';
-        document.getElementById('message').innerText = 'Submitting...';
-
-        google.script.run
-          .withSuccessHandler(onFormSuccess)
-          .withFailureHandler(handleError)
-          .processForm(this);
-      });
-
       function onFormSuccess(response) {
-        document.getElementById('message').style.color = 'green';
-        document.getElementById('message').innerText = response.status;
-        
-        // Update progress bars with returned values
-        updateUI(response);
+        // If the server returned an object with status and metrics, show status and update UI.
+        if (response && typeof response === 'object') {
+          if (response.status) {
+            document.getElementById('message').style.color = 'green';
+            document.getElementById('message').innerText = response.status;
+          }
+          updateUI(response);
+        } else {
+          // Otherwise just display the returned string
+          document.getElementById('message').style.color = 'green';
+          document.getElementById('message').innerText = response;
+        }
       }
 
       function updateUI(data) {
@@ -206,7 +199,8 @@
 
 
 
-           function selectOption(labelElement) {
+
+       function selectOption(labelElement) {
         // Clear 'selected' class from all labels
         const labels = document.querySelectorAll('.option-label');
         labels.forEach(l => l.classList.remove('selected'));
@@ -229,9 +223,17 @@
         msg.innerText = "";
         
         google.script.run
-          .withSuccessHandler(function(responseString) {
-            msg.style.color = "#2e7d32";
-            msg.innerText = responseString;
+          .withSuccessHandler(function(response) {
+            // Accept either an object (with status + metrics) or a string
+            if (response && typeof response === 'object') {
+              msg.style.color = "#2e7d32";
+              if (response.status) msg.innerText = response.status;
+              updateUI(response);
+            } else {
+              msg.style.color = "#2e7d32";
+              msg.innerText = response;
+            }
+
             document.getElementById('myForm').reset();
             
             // Reset visual option selection back to 'Other' (default)
@@ -244,7 +246,7 @@
           })
           .withFailureHandler(function(error) {
             msg.style.color = "#c62828";
-            msg.innerText = "Error: " + error.message;
+            msg.innerText = "Error: " + (error && error.message ? error.message : error);
             btn.disabled = false;
             btn.innerText = "Submit";
           })
