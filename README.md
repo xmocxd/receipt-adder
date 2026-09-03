@@ -13,3 +13,7 @@ also show the "type" cell if anything present (cell directly to the right of eac
 ---
 
 add an undo button which would remove the last added data to the spreadsheet -- just allow for a single level of undo/redo
+
+---
+
+spend progress is not displaying correctly when over 100% --- show the correct percentage (i.e., 110%), and just show the bar at 100%, but change the bar color to red if over 100%
